@@ -1,21 +1,21 @@
 import React, { useState, useMemo } from 'react';
 import Header from './components/Header';
 import ServiceSelector from './components/ServiceSelector';
-import BookingForm from './components/BookingForm';
-import SummaryCard from './components/SummaryCard';
+import StepBookingCard from './components/StepBookingCard';
+import WebpayPage from './components/WebpayPage';
 import ThankYouView from './components/ThankYouView';
 import FooterBar from './components/FooterBar';
 import { TRANSFER_SERVICES, TOUR_SERVICES, FLEET_OPTIONS, LOCATIONS } from './data/pricingData';
 import { generateBookingCode } from './utils/formatters';
+import { generateAndDownloadReservationPDF } from './utils/pdfGenerator';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState('booking'); // 'booking' | 'thank-you'
+  const [currentView, setCurrentView] = useState('booking'); // 'booking' | 'webpay' | 'thank-you'
   const [mode, setMode] = useState('transfer'); // 'transfer' | 'tour'
 
   const [selectedTransfer, setSelectedTransfer] = useState(TRANSFER_SERVICES[0]);
   const [selectedTour, setSelectedTour] = useState(TOUR_SERVICES[0]);
 
-  // Tomorrow date string
   const today = new Date();
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
@@ -26,7 +26,6 @@ export default function App() {
   const returnDayStr = returnDay.toISOString().split('T')[0];
 
   const [formData, setFormData] = useState({
-    // Transfer fields
     tripType: 'oneway',
     originId: 'pmc',
     originName: 'Aeropuerto El Tepual (PMC) - Puerto Montt',
@@ -44,17 +43,14 @@ export default function App() {
     selectedVehicleId: 'suv',
     vehicle: FLEET_OPTIONS[0],
 
-    // Tour fields
     durationMode: 'Full Day',
     pickupAddress: '',
 
-    // Extras
     babySeat: false,
     petFriendly: false,
     needInvoice: false,
     bilingualGuide: false,
 
-    // Customer
     fullName: '',
     phone: '',
     email: '',
@@ -62,12 +58,12 @@ export default function App() {
   });
 
   const [bookingCode, setBookingCode] = useState('');
+  const [transactionId, setTransactionId] = useState('');
+  const [paymentMethodLabel, setPaymentMethodLabel] = useState('');
 
-  // Handle service selection
   const handleSelectItem = (item) => {
     if (mode === 'transfer') {
       setSelectedTransfer(item);
-      // update origin/dest if exists
       const origLoc = LOCATIONS.find(l => l.id === item.originId);
       const destLoc = LOCATIONS.find(l => l.id === item.destId);
       setFormData(prev => ({
@@ -88,7 +84,6 @@ export default function App() {
 
   const selectedItem = mode === 'transfer' ? selectedTransfer : selectedTour;
 
-  // Price Calculation
   const totalPrice = useMemo(() => {
     let base = selectedItem.priceSUV;
     if (formData.selectedVehicleId === 'van') base = selectedItem.priceVan;
@@ -107,9 +102,29 @@ export default function App() {
     }
   }, [mode, selectedItem, formData.selectedVehicleId, formData.tripType, formData.durationMode]);
 
-  const handleConfirmOnline = () => {
+  const handleGoToWebpay = () => {
+    setCurrentView('webpay');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePaymentSuccess = async ({ transactionId: txId, paymentMethodLabel: methodLabel }) => {
     const code = generateBookingCode();
     setBookingCode(code);
+    setTransactionId(txId);
+    setPaymentMethodLabel(methodLabel);
+
+    // Descargar automáticamente el PDF con fondo blanco y logo de Choffers
+    await generateAndDownloadReservationPDF({
+      bookingCode: code,
+      transactionId: txId,
+      mode,
+      selectedItem,
+      formData,
+      totalPrice,
+      paymentMethodLabel: methodLabel
+    });
+
+    // Cambiar a la pantalla de confirmación con el mensaje de seguimiento por WhatsApp
     setCurrentView('thank-you');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -117,21 +132,18 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FCFCFC] text-neutral-900 flex flex-col justify-between font-sans selection:bg-[#0c0302] selection:text-white">
       
-      {/* Central app wrapper */}
+      {/* Contenedor Principal */}
       <div className="max-w-5xl w-full mx-auto px-3 sm:px-6 pt-4 sm:pt-6 space-y-4 sm:space-y-5">
         
-        {/* Minimal Glass Header */}
-        <Header 
-          currentView={currentView}
-          setCurrentView={setCurrentView}
-        />
+        {/* Header Minimalista: Solo Logo + Solo Llamar */}
+        <Header setCurrentView={setCurrentView} />
 
-        {/* View Switcher: Booking vs Thank You */}
-        {currentView === 'booking' ? (
-          <main className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-6 items-start pb-6">
+        {/* Vistas de Página Completa (Sin Pop-ups) */}
+        {currentView === 'booking' && (
+          <main className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 items-stretch pb-6">
             
-            {/* Col 1: Service / Tour Selector (4 cols) */}
-            <div className="lg:col-span-4">
+            {/* Costado Izquierdo: Selector de Transfers y Tours Privados */}
+            <div className="lg:col-span-5 flex flex-col">
               <ServiceSelector
                 mode={mode}
                 setMode={setMode}
@@ -141,31 +153,36 @@ export default function App() {
               />
             </div>
 
-            {/* Col 2: Configuration Form (5 cols) */}
-            <div className="lg:col-span-5">
-              <BookingForm
+            {/* Costado Derecho: Un solo cuadrado del mismo tamaño con Slider por Pasos */}
+            <div className="lg:col-span-7 flex flex-col">
+              <StepBookingCard
                 mode={mode}
                 selectedItem={selectedItem}
                 formData={formData}
                 setFormData={setFormData}
-              />
-            </div>
-
-            {/* Col 3: Summary & Order Action (3 cols) */}
-            <div className="lg:col-span-3">
-              <SummaryCard
-                mode={mode}
-                selectedItem={selectedItem}
-                formData={formData}
                 totalPrice={totalPrice}
-                onConfirmOnline={handleConfirmOnline}
+                onGoToWebpay={handleGoToWebpay}
               />
             </div>
 
           </main>
-        ) : (
+        )}
+
+        {currentView === 'webpay' && (
+          <WebpayPage
+            selectedItem={selectedItem}
+            formData={formData}
+            totalPrice={totalPrice}
+            onBack={() => setCurrentView('booking')}
+            onPaymentSuccess={handlePaymentSuccess}
+          />
+        )}
+
+        {currentView === 'thank-you' && (
           <ThankYouView
             bookingCode={bookingCode}
+            transactionId={transactionId}
+            paymentMethodLabel={paymentMethodLabel}
             mode={mode}
             selectedItem={selectedItem}
             formData={formData}
@@ -176,7 +193,7 @@ export default function App() {
 
       </div>
 
-      {/* Clean Minimal Footer */}
+      {/* Footer Minimal */}
       <FooterBar />
 
     </div>

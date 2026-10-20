@@ -1,4 +1,4 @@
-// Utilidades de formato y generadores de enlaces para WhatsApp
+import { CHOFFERS_PHONE_NUMBER } from '../data/pricingData';
 
 export const formatCLP = (amount) => {
   if (typeof amount !== 'number' || isNaN(amount)) return '$0';
@@ -18,113 +18,57 @@ export const generateBookingCode = () => {
   return code;
 };
 
-export const CHOFFERS_PHONE_NUMBER = '56995554665';
-export const CHOFFERS_DISPLAY_PHONE = '+56 9 9555 4665';
+export const buildWhatsAppUrl = (data) => {
+  const isTransfer = data.mode === 'transfer';
+  const tripTypeLabel = data.tripType === 'roundtrip' ? '🔄 Ida y Vuelta' : '➡️ Solo Ida';
+  const serviceName = isTransfer ? (data.transferService?.name || 'Transfer Privado') : (data.tourService?.name || 'Tour Privado');
 
-export const buildTransferWhatsAppLink = (booking) => {
-  const tripTypeLabel = booking.tripType === 'roundtrip' ? '🔄 Ida y Vuelta' : '➡️ Solo Ida';
-  const vehicleName = booking.vehicle?.name || 'SUV / Sedán Ejecutivo';
-  
-  let msg = `*NUEVA SOLICITUD DE TRANSFER • CHOFFERS.CL*\n`;
-  if (booking.bookingCode) {
-    msg += `🔖 *Código Ref:* \`${booking.bookingCode}\`\n`;
+  let text = `*SOLICITUD DE RESERVA • CHOFFERS.CL*\n`;
+  if (data.code) {
+    text += `🔖 *Código Ref:* \`${data.code}\`\n`;
   }
-  msg += `─────────────────────────\n`;
-  msg += `🚘 *Tipo de Viaje:* ${tripTypeLabel}\n`;
-  msg += `📍 *Origen:* ${booking.originName || booking.customOrigin || 'No especificado'}\n`;
-  msg += `🏁 *Destino:* ${booking.destName || booking.customDest || 'No especificado'}\n`;
-  if (booking.originAddress) {
-    msg += `📌 *Dirección exacta origen:* ${booking.originAddress}\n`;
-  }
-  if (booking.destAddress) {
-    msg += `📌 *Dirección exacta destino:* ${booking.destAddress}\n`;
-  }
-  msg += `📅 *Fecha de Ida:* ${booking.date || 'Por coordinar'}\n`;
-  msg += `⏰ *Hora de Ida:* ${booking.time || 'Por coordinar'}\n`;
-  
-  if (booking.tripType === 'roundtrip') {
-    msg += `\n🔄 *DATOS DE RETORNO:*\n`;
-    msg += `📅 *Fecha Retorno:* ${booking.returnDate || 'Mismo día'}\n`;
-    msg += `⏰ *Hora Retorno:* ${booking.returnTime || 'Por coordinar'}\n`;
+  text += `──────────────────────\n`;
+  text += `🚘 *Servicio:* ${serviceName}\n`;
+  if (isTransfer) {
+    text += `📍 *Modalidad:* ${tripTypeLabel}\n`;
+    text += `🛫 *Origen:* ${data.originName || 'Aeropuerto PMC'}\n`;
+    text += `🏁 *Destino:* ${data.destName || 'Puerto Varas'}\n`;
+    if (data.originAddress) text += `📌 *Dirección origen:* ${data.originAddress}\n`;
+    if (data.destAddress) text += `📌 *Dirección destino:* ${data.destAddress}\n`;
+    if (data.flightNumber) text += `✈️ *Vuelo:* ${data.flightNumber.toUpperCase()}\n`;
+  } else {
+    text += `⏱️ *Modalidad:* ${data.durationMode || 'Full Day'}\n`;
+    text += `🏨 *Lugar de Recogida:* ${data.pickupAddress || 'Puerto Varas'}\n`;
   }
 
-  if (booking.flightNumber) {
-    msg += `✈️ *N° de Vuelo:* ${booking.flightNumber.toUpperCase()}\n`;
+  text += `📅 *Fecha:* ${data.date || 'Por coordinar'}\n`;
+  text += `⏰ *Hora:* ${data.time || '10:00'}\n`;
+
+  if (isTransfer && data.tripType === 'roundtrip') {
+    text += `🔄 *Regreso:* ${data.returnDate || 'Mismo día'} a las ${data.returnTime || '18:00'}\n`;
   }
 
-  msg += `\n👥 *Pasajeros:* ${booking.passengers || 1}\n`;
-  msg += `🧳 *Equipaje:* ${booking.largeBags || 0} maletas grandes, ${booking.smallBags || 0} de mano\n`;
-  msg += `🚙 *Vehículo solicitado:* ${vehicleName}\n`;
+  text += `👥 *Pasajeros:* ${data.passengers || 2}\n`;
+  text += `🚙 *Vehículo:* ${data.vehicle?.name || 'SUV Ejecutiva'}\n`;
 
   // Extras
   const extras = [];
-  if (booking.babySeat) extras.push('👶 Silla de bebé/niño (Gratis)');
-  if (booking.petFriendly) extras.push('🐾 Viaja con mascota en canil');
-  if (booking.needInvoice) extras.push('💼 Requiere Factura para empresa');
-  if (booking.sportLuggage) extras.push('⛷️ Equipamiento especial / ski / bicicleta');
+  if (data.babySeat) extras.push('👶 Silla de niños');
+  if (data.petFriendly) extras.push('🐾 Mascota en canil');
+  if (data.needInvoice) extras.push('💼 Requiere Factura');
+  if (data.bilingualGuide) extras.push('🗣️ Chofer bilingüe');
 
   if (extras.length > 0) {
-    msg += `\n✨ *Requerimientos Adicionales:*\n${extras.map(e => `• ${e}`).join('\n')}\n`;
+    text += `✨ *Extras:* ${extras.join(', ')}\n`;
   }
 
-  msg += `\n👤 *DATOS DEL PASAJERO:*\n`;
-  msg += `• Nombre: ${booking.passengerName || 'Sin especificar'}\n`;
-  msg += `• Teléfono: ${booking.passengerPhone || 'Sin especificar'}\n`;
-  if (booking.passengerEmail) {
-    msg += `• Email: ${booking.passengerEmail}\n`;
-  }
-  if (booking.notes) {
-    msg += `• Comentarios/Notas: ${booking.notes}\n`;
-  }
+  text += `\n👤 *CLIENTE:* ${data.fullName || 'No especificado'} (${data.phone || 'Sin teléfono'})\n`;
+  if (data.email) text += `📧 *Email:* ${data.email}\n`;
+  if (data.notes) text += `📝 *Notas:* ${data.notes}\n`;
 
-  msg += `─────────────────────────\n`;
-  msg += `💰 *Tarifa Estimada:* *${formatCLP(booking.totalPrice)}*\n`;
-  msg += `_Solicitado desde go.choffers.cl - ¿Me confirman disponibilidad por favor?_`;
+  text += `──────────────────────\n`;
+  text += `💰 *Tarifa Estimada:* *${formatCLP(data.totalPrice)}*\n`;
+  text += `_Enviado desde go.choffers.cl_`;
 
-  return `https://wa.me/${CHOFFERS_PHONE_NUMBER}?text=${encodeURIComponent(msg)}`;
-};
-
-export const buildTourWhatsAppLink = (booking) => {
-  const tourName = booking.tour?.title || 'Tour Privado en Puerto Varas';
-  const vehicleName = booking.vehicle?.name || 'SUV / Sedán';
-
-  let msg = `*NUEVA SOLICITUD DE TOUR PRIVADO • CHOFFERS.CL*\n`;
-  if (booking.bookingCode) {
-    msg += `🔖 *Código Ref:* \`${booking.bookingCode}\`\n`;
-  }
-  msg += `─────────────────────────\n`;
-  msg += `🏔️ *Tour:* *${tourName}*\n`;
-  msg += `⏱️ *Modalidad:* ${booking.durationMode || 'Día Completo'}\n`;
-  msg += `📅 *Fecha Solicitada:* ${booking.date || 'Por coordinar'}\n`;
-  msg += `⏰ *Hora Salida Sugerida:* ${booking.time || '09:00 hrs'}\n`;
-  msg += `👥 *Pasajeros:* ${booking.passengers || 2} personas\n`;
-  msg += `🏨 *Lugar de Recogida:* ${booking.pickupAddress || 'Hotel / Alojamiento en Puerto Varas'}\n`;
-  msg += `🚙 *Categoría de Vehículo:* ${vehicleName}\n`;
-
-  // Extras
-  const extras = [];
-  if (booking.bilingualGuide) extras.push('🗣️ Chofer / Asistencia bilingüe (EN/ES)');
-  if (booking.babySeat) extras.push('👶 Silla para niños sin costo');
-  if (booking.needInvoice) extras.push('💼 Requiere Factura para empresa');
-  if (booking.petFriendly) extras.push('🐾 Pet friendly');
-
-  if (extras.length > 0) {
-    msg += `\n✨ *Detalles Adicionales:*\n${extras.map(e => `• ${e}`).join('\n')}\n`;
-  }
-
-  msg += `\n👤 *DATOS DEL CONTACTO:*\n`;
-  msg += `• Nombre: ${booking.passengerName || 'Sin especificar'}\n`;
-  msg += `• WhatsApp: ${booking.passengerPhone || 'Sin especificar'}\n`;
-  if (booking.passengerEmail) {
-    msg += `• Email: ${booking.passengerEmail}\n`;
-  }
-  if (booking.notes) {
-    msg += `• Comentarios/Preferencias: ${booking.notes}\n`;
-  }
-
-  msg += `─────────────────────────\n`;
-  msg += `💰 *Tarifa Estimada del Tour:* *${formatCLP(booking.totalPrice)}*\n`;
-  msg += `_Solicitado desde go.choffers.cl - ¿Tienen disponibilidad para esta fecha?_`;
-
-  return `https://wa.me/${CHOFFERS_PHONE_NUMBER}?text=${encodeURIComponent(msg)}`;
+  return `https://wa.me/${CHOFFERS_PHONE_NUMBER}?text=${encodeURIComponent(text)}`;
 };

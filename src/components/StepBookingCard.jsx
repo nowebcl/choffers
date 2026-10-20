@@ -15,7 +15,9 @@ import {
   CreditCard,
   ArrowRight,
   ArrowLeft,
-  UserCheck
+  UserCheck,
+  Sparkles,
+  Zap
 } from 'lucide-react';
 import { LOCATIONS, FLEET_OPTIONS } from '../data/pricingData';
 import { formatCLP, buildWhatsAppUrl } from '../utils/formatters';
@@ -30,8 +32,36 @@ export default function StepBookingCard({
 }) {
   const [step, setStep] = useState(1); // 1: Ruta & Horario | 2: Vehículo & Datos | 3: Resumen de la Reserva
   const [validationError, setValidationError] = useState('');
+  const [autoFilledToast, setAutoFilledToast] = useState(false);
 
   const isTransfer = mode === 'transfer';
+
+  const handleAutoFillDemo = (goToSummary = false) => {
+    setValidationError('');
+    setFormData(prev => ({
+      ...prev,
+      fullName: 'Carolina Echeverría Silva',
+      phone: '+56 9 8452 1930',
+      email: 'carolina.echeverria@gmail.com',
+      originAddress: isTransfer ? 'Llegadas Nacionales, Aeropuerto El Tepual PMC' : prev.originAddress,
+      destAddress: isTransfer ? 'Hotel Cumbres Puerto Varas, Av. Imperial 561' : prev.destAddress,
+      pickupAddress: !isTransfer ? 'Hotel Cumbres Puerto Varas, Av. Imperial 561' : prev.pickupAddress,
+      flightNumber: isTransfer ? 'LA123' : prev.flightNumber,
+      notes: isTransfer
+        ? 'Esperar con cartel a nombre de Carolina Echeverría. Traemos 2 maletas.'
+        : 'Nos gustaría hacer una parada para probar kuchen tradicional en Frutillar.',
+      passengers: 2,
+      bags: 2,
+      babySeat: true,
+      needInvoice: true
+    }));
+    setAutoFilledToast(true);
+    setTimeout(() => setAutoFilledToast(false), 3500);
+
+    if (goToSummary) {
+      setStep(3);
+    }
+  };
 
   const handleChange = (field, value) => {
     setValidationError('');
@@ -90,7 +120,7 @@ export default function StepBookingCard({
       
       {/* TOP HEADER & STEPPER BAR */}
       <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-neutral-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-neutral-100">
           <div>
             <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400 block">
               {step === 3 ? 'Paso Final' : isTransfer ? 'Configurar Traslado' : 'Configurar Excursión'}
@@ -100,10 +130,54 @@ export default function StepBookingCard({
             </h2>
           </div>
 
-          <span className="self-start sm:self-auto bg-neutral-100 text-neutral-700 font-semibold text-[11px] px-2.5 py-1 rounded-lg">
-            Paso {step} de 3
-          </span>
+          <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+            {/* Botón Auto-rellenar Demo */}
+            <button
+              type="button"
+              onClick={() => handleAutoFillDemo(false)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 font-bold text-[11px] transition-all cursor-pointer shadow-2xs active:scale-95"
+              title="Rellenar todos los campos con datos reales de prueba para demo rápida"
+            >
+              <Zap className="w-3.5 h-3.5 text-amber-600 fill-amber-500" />
+              <span>Auto-rellenar demo</span>
+            </button>
+
+            {/* Acceso directo a pagar para demo */}
+            {step !== 3 && (
+              <button
+                type="button"
+                onClick={() => handleAutoFillDemo(true)}
+                className="hidden md:flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 font-medium text-[11px] transition-all cursor-pointer"
+                title="Rellenar e ir directamente al resumen de pago"
+              >
+                <span>Demo directa →</span>
+              </button>
+            )}
+
+            <span className="bg-neutral-100 text-neutral-700 font-semibold text-[11px] px-2.5 py-1.5 rounded-xl">
+              Paso {step} de 3
+            </span>
+          </div>
         </div>
+
+        {/* Feedback visual al auto-rellenar */}
+        {autoFilledToast && (
+          <div className="mt-2.5 p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center justify-between animate-fade-in">
+            <div className="flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span>✓ Formulario completado con datos de prueba realistas (Carolina Echeverría).</span>
+            </div>
+            {step !== 3 && (
+              <button
+                type="button"
+                onClick={() => setStep(3)}
+                className="text-[10px] font-bold underline hover:text-emerald-900 cursor-pointer ml-2"
+              >
+                Ir a Resumen / Pagar →
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Step Navigation Pills */}
         <div className="grid grid-cols-3 gap-1.5 p-1 bg-neutral-100 rounded-xl mt-3 mb-4">
@@ -545,9 +619,19 @@ export default function StepBookingCard({
 
             {/* Datos de Contacto */}
             <div className="space-y-2 pt-2 border-t border-neutral-100">
-              <label className="text-[11px] font-semibold text-neutral-700 block">
-                Datos del Pasajero Titular
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-semibold text-neutral-700 block">
+                  Datos del Pasajero Titular
+                </label>
+                <button
+                  type="button"
+                  onClick={() => handleAutoFillDemo(false)}
+                  className="text-[10px] font-semibold text-amber-800 hover:text-amber-950 flex items-center gap-1 cursor-pointer bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200/80 transition-colors"
+                >
+                  <Zap className="w-3 h-3 text-amber-600 fill-amber-500" />
+                  <span>Rellenar datos demo</span>
+                </button>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input
